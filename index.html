@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GPS Speed Profiles</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#fff; --surface:#f9fafb; --border:#e5e7eb;
+    --text:#111827; --muted:#6b7280;
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);
+       font-family:-apple-system,"Inter",sans-serif;padding:8px 8px 0;}
+  h2{font-size:1rem;font-weight:700;margin-bottom:3px;}
+  .sub{font-size:0.8rem;color:var(--muted);margin-bottom:18px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 20px 14px;margin-bottom:28px;}
+  .chart-wrap{position:relative;}
+  .leg-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .leg{display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--muted);}
+  .divider{border:none;border-top:1px solid var(--border);margin:28px 0;}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+  .tab{padding:5px 14px;border-radius:6px;border:1px solid var(--border);
+       background:var(--surface);color:var(--muted);cursor:pointer;
+       font-size:0.8rem;font-weight:500;transition:all .15s;}
+  .tab.active{background:var(--text);color:var(--bg);border-color:var(--text);}
+  .tab:hover:not(.active){background:var(--border);}
+  /* Dumbbell legend */
+  .db-legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;
+             padding-top:12px;border-top:1px solid var(--border);align-items:center;}
+  .db-leg{display:flex;align-items:center;gap:7px;font-size:0.75rem;color:var(--muted);}
+  /* Dumbbell tooltip */
+  #tt{position:fixed;display:none;background:var(--surface);
+      border:1px solid var(--border);border-radius:10px;
+      padding:12px 14px;font-size:0.78rem;color:var(--text);
+      box-shadow:0 4px 16px rgba(0,0,0,.12);pointer-events:none;
+      min-width:200px;z-index:100;}
+  #tt .tt-event{font-weight:700;margin-bottom:8px;font-size:0.8rem;}
+  #tt .tt-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:3px;}
+  #tt .tt-vals{display:flex;gap:10px;}
+  #tt .tt-val{font-variant-numeric:tabular-nums;min-width:32px;text-align:right;}
+  #tt .tt-head{display:flex;justify-content:flex-end;gap:10px;
+               color:var(--muted);font-size:0.7rem;margin-bottom:4px;padding-bottom:4px;
+               border-bottom:1px solid var(--border);}
+  #tt .tt-head span{min-width:32px;text-align:right;}
+</style>
+</head>
+<body>
+
+<div class="card" style="overflow:visible;padding-bottom:16px">
+  <svg id="dumbbell" viewBox="0 0 820 360" width="100%" style="overflow:visible"></svg>
+  <div class="db-legend">
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#C62828" stroke-width="2.5"/><circle cx="14" cy="5" r="3.5" fill="#C62828"/></svg>
+      <span>Winner</span>
+    </div>
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#1565C0" stroke-width="2"/><circle cx="14" cy="5" r="3" fill="#1565C0"/></svg>
+      <span>Final A</span>
+    </div>
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#2E7D32" stroke-width="2"/><circle cx="14" cy="5" r="3" fill="#2E7D32"/></svg>
+      <span>Final B</span>
+    </div>
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#F9A825" stroke-width="2"/><circle cx="14" cy="5" r="3" fill="#F9A825"/></svg>
+      <span>Semi-Final</span>
+    </div>
+    <div class="db-leg" style="margin-left:10px;padding-left:10px;border-left:1px solid var(--border)">
+      <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="white" stroke="#888" stroke-width="1.5"/></svg>
+      <span>Start</span>
+    </div>
+    <div class="db-leg">
+      <svg width="12" height="12" viewBox="0 0 12 12"><polygon points="6,1 11,6 6,11 1,6" fill="#888"/></svg>
+      <span>Peak</span>
+    </div>
+    <div class="db-leg">
+      <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="#888"/></svg>
+      <span>Finish</span>
+    </div>
+  </div>
+</div>
+
+<!-- Dumbbell tooltip (fixed overlay) -->
+<div id="tt">
+  <div class="tt-event" id="tt-event"></div>
+  <div class="tt-head"><span>Start</span><span>Peak</span><span>Finish</span></div>
+  <div class="tt-row" id="tt-w"></div>
+  <div class="tt-row" id="tt-fa"></div>
+  <div class="tt-row" id="tt-fb"></div>
+  <div class="tt-row" id="tt-sf"></div>
+</div>
+
+<div class="tabs" id="tabs"></div>
+<div class="card">
+  <div style="font-size:.875rem;font-weight:600;margin-bottom:2px" id="line-title"></div>
+  <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="line-winner"></div>
+  <div class="chart-wrap" style="height:240px"><canvas id="line"></canvas></div>
+  <div class="leg-row">
+    <div class="leg"><div style="background:#C62828;height:3px;width:22px;border-radius:2px"></div>Winner</div>
+    <div class="leg"><div style="background:#1565C0;height:2px;width:22px;border-radius:2px"></div>Final A</div>
+    <div class="leg"><div style="background:#2E7D32;height:2px;width:22px;border-radius:2px"></div>Final B</div>
+    <div class="leg"><div style="background:#F9A825;height:2px;width:22px;border-radius:2px"></div>Semi-Final</div>
+  </div>
+</div>
+
+<script>
+const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches
+const gc  = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)'
+const tc  = isDark ? '#94a3b8' : '#9ca3af'
+const tbg = isDark ? '#1e2235' : '#fff'
+const ttt = isDark ? '#f1f5f9' : '#111827'
+const ttb = isDark ? '#94a3b8' : '#6b7280'
+const tbc = isDark ? '#2d3148' : '#e5e7eb'
+
+// ── Winner names ──────────────────────────────────────────────────────────────
+const WINNERS = {
+  'K1 W 500m':  'Pauline JAGSCH (GER)',
+  'K1 M 1000m': 'Fernando PIMENTA (POR)',
+  'K2 W 500m':  'HARLEN / DROBOT (AUS)',
+  'K2 M 500m':  'KURUCZ / FODOR (HUN)',
+  'K4 W 500m':  'PASZEK / HERMANUSSEN / JAGSCH / REINWARDT (GER)',
+  'K4 M 500m':  'RENDSCHMIDT / LEMKE / SCHOPF / LIEBSCHER-LUCZ (GER)',
+}
+
+// ── Dumbbell Data (Start / Peak / Finish  km/h) ───────────────────────────────
+const DB_DATA = {
+  'K1 W 500m': {
+    winner:    { start:19.2, peak:20.2, finish:15.1 },
+    finalA:    { start:18.6, peak:19.0, finish:15.2 },
+    finalB:    { start:17.7, peak:18.1, finish:14.8 },
+    semiFinal: { start:16.1, peak:16.6, finish:13.2 },
+  },
+  'K1 M 1000m': {
+    winner:    { start:20.1, peak:21.2, finish:17.3 },
+    finalA:    { start:19.5, peak:20.6, finish:17.1 },
+    finalB:    { start:18.8, peak:20.2, finish:15.9 },
+    semiFinal: { start:16.5, peak:18.0, finish:14.5 },
+  },
+  'K2 W 500m': {
+    winner:    { start:20.9, peak:21.3, finish:15.3 },
+    finalA:    { start:20.1, peak:20.5, finish:16.0 },
+    finalB:    { start:19.3, peak:19.6, finish:15.5 },
+    semiFinal: { start:19.5, peak:19.9, finish:16.0 },
+  },
+  'K2 M 500m': {
+    winner:    { start:23.6, peak:24.1, finish:18.2 },
+    finalA:    { start:23.3, peak:23.7, finish:18.0 },
+    finalB:    { start:22.6, peak:23.2, finish:17.5 },
+    semiFinal: { start:22.8, peak:23.3, finish:17.6 },
+  },
+  'K4 W 500m': {
+    winner:    { start:21.1, peak:21.6, finish:17.1 },
+    finalA:    { start:20.8, peak:21.2, finish:16.8 },
+    finalB:    { start:20.1, peak:20.4, finish:16.4 },
+    semiFinal: { start:19.4, peak:19.7, finish:16.3 },
+  },
+  'K4 M 500m': {
+    winner:    { start:24.0, peak:24.5, finish:19.5 },
+    finalA:    { start:23.9, peak:24.4, finish:19.2 },
+    finalB:    { start:23.2, peak:23.8, finish:18.7 },
+    semiFinal: { start:23.6, peak:24.2, finish:18.8 },
+  },
+}
+const DB_COLORS = { winner:'#C62828', finalA:'#1565C0', finalB:'#2E7D32', semiFinal:'#F9A825' }
+const DB_LABELS = { winner:'Winner', finalA:'Final A', finalB:'Final B', semiFinal:'Semi-Final' }
+const DB_GROUPS = ['winner','finalA','finalB','semiFinal']
+
+// ── Dumbbell SVG ───────────────────────────────────────────────────────────────
+const SVG_W=820, SVG_H=360, ML=55, MR=20, MT=24, MB=52
+const CW=SVG_W-ML-MR, CH=SVG_H-MT-MB
+const DB_EVENTS = Object.keys(DB_DATA)
+const EW = CW / DB_EVENTS.length
+const G_OFF = [-24,-8,8,24]
+const Y_MIN=12, Y_MAX=26
+const yc = v => MT + CH*(1-(v-Y_MIN)/(Y_MAX-Y_MIN))
+const ec = i => ML + EW*i + EW/2
+const svgNS = 'http://www.w3.org/2000/svg'
+const dbSvg = document.getElementById('dumbbell')
+const bgFill   = isDark ? '#0f1117' : '#ffffff'
+const bandFill = isDark ? 'rgba(255,255,255,.02)' : 'rgba(0,0,0,.015)'
+
+for(let v=14; v<=26; v+=2){
+  const y = yc(v)
+  const g = document.createElementNS(svgNS,'line')
+  g.setAttribute('x1',ML); g.setAttribute('x2',SVG_W-MR)
+  g.setAttribute('y1',y);  g.setAttribute('y2',y)
+  g.setAttribute('stroke',gc); g.setAttribute('stroke-width','1')
+  dbSvg.appendChild(g)
+  const t = document.createElementNS(svgNS,'text')
+  t.setAttribute('x',ML-8); t.setAttribute('y',y+4)
+  t.setAttribute('text-anchor','end'); t.setAttribute('font-size','11')
+  t.setAttribute('fill',tc); t.textContent = v
+  dbSvg.appendChild(t)
+}
+const yl = document.createElementNS(svgNS,'text')
+yl.setAttribute('transform','rotate(-90)')
+yl.setAttribute('x',-(MT+CH/2)); yl.setAttribute('y',14)
+yl.setAttribute('text-anchor','middle'); yl.setAttribute('font-size','10')
+yl.setAttribute('fill',tc); yl.textContent = 'Speed (km/h)'
+dbSvg.appendChild(yl)
+
+DB_EVENTS.forEach((ev,ei)=>{
+  const cx = ec(ei)
+  if(ei%2===0){
+    const band = document.createElementNS(svgNS,'rect')
+    band.setAttribute('x',cx-EW/2); band.setAttribute('y',MT)
+    band.setAttribute('width',EW);  band.setAttribute('height',CH)
+    band.setAttribute('fill',bandFill)
+    dbSvg.appendChild(band)
+  }
+  DB_GROUPS.forEach((g,gi)=>{
+    const d = DB_DATA[ev][g]
+    if(!d) return
+    const x=cx+G_OFF[gi], c=DB_COLORS[g], isW=g==='winner'
+    const sw=isW?2.5:1.5, pr=isW?5:4, dr=isW?5.5:4.5
+    const yS=yc(d.start), yP=yc(d.peak), yF=yc(d.finish)
+    const yTop=Math.min(yS,yP,yF), yBot=Math.max(yS,yP,yF)
+    const ln = document.createElementNS(svgNS,'line')
+    ln.setAttribute('x1',x); ln.setAttribute('x2',x)
+    ln.setAttribute('y1',yTop); ln.setAttribute('y2',yBot)
+    ln.setAttribute('stroke',c); ln.setAttribute('stroke-width',sw)
+    dbSvg.appendChild(ln)
+    const fc = document.createElementNS(svgNS,'circle')
+    fc.setAttribute('cx',x); fc.setAttribute('cy',yF)
+    fc.setAttribute('r',pr); fc.setAttribute('fill',c)
+    dbSvg.appendChild(fc)
+    const dm = document.createElementNS(svgNS,'polygon')
+    dm.setAttribute('points',`${x},${yP-dr} ${x+dr},${yP} ${x},${yP+dr} ${x-dr},${yP}`)
+    dm.setAttribute('fill',c)
+    dbSvg.appendChild(dm)
+    const sc = document.createElementNS(svgNS,'circle')
+    sc.setAttribute('cx',x); sc.setAttribute('cy',yS)
+    sc.setAttribute('r',pr); sc.setAttribute('fill',bgFill)
+    sc.setAttribute('stroke',c); sc.setAttribute('stroke-width',sw)
+    dbSvg.appendChild(sc)
+  })
+  const parts = ev.split(' ')
+  const t1 = document.createElementNS(svgNS,'text')
+  t1.setAttribute('x',cx); t1.setAttribute('y',SVG_H-MB+18)
+  t1.setAttribute('text-anchor','middle'); t1.setAttribute('font-size','11')
+  t1.setAttribute('fill',tc); t1.textContent = parts.slice(0,2).join(' ')
+  dbSvg.appendChild(t1)
+  const t2 = document.createElementNS(svgNS,'text')
+  t2.setAttribute('x',cx); t2.setAttribute('y',SVG_H-MB+31)
+  t2.setAttribute('text-anchor','middle'); t2.setAttribute('font-size','11')
+  t2.setAttribute('fill',tc); t2.textContent = parts[2]||''
+  dbSvg.appendChild(t2)
+  const hr = document.createElementNS(svgNS,'rect')
+  hr.setAttribute('x',cx-EW/2); hr.setAttribute('y',MT)
+  hr.setAttribute('width',EW);  hr.setAttribute('height',CH)
+  hr.setAttribute('fill','transparent')
+  hr.addEventListener('mouseenter', e => showDbTT(e,ev))
+  hr.addEventListener('mousemove',  moveDbTT)
+  hr.addEventListener('mouseleave', hideDbTT)
+  dbSvg.appendChild(hr)
+})
+
+// ── Dumbbell Tooltip ──────────────────────────────────────────────────────────
+const dbTT    = document.getElementById('tt')
+const dbTTEv  = document.getElementById('tt-event')
+const dbTTRows = {
+  winner:    document.getElementById('tt-w'),
+  finalA:    document.getElementById('tt-fa'),
+  finalB:    document.getElementById('tt-fb'),
+  semiFinal: document.getElementById('tt-sf'),
+}
+
+function showDbTT(e, ev){
+  dbTTEv.textContent = ev
+  DB_GROUPS.forEach(g=>{
+    const row = dbTTRows[g]
+    if(!DB_DATA[ev][g]){ row.style.display='none'; return }
+    const d = DB_DATA[ev][g]
+    row.style.display = 'flex'
+    row.innerHTML = `
+      <span style="color:${DB_COLORS[g]};font-weight:${g==='winner'?700:400}">${DB_LABELS[g]}</span>
+      <span class="tt-vals">
+        <span class="tt-val">${d.start}</span>
+        <span class="tt-val">${d.peak}</span>
+        <span class="tt-val">${d.finish}</span>
+      </span>`
+  })
+  dbTT.style.display = 'block'
+  moveDbTT(e)
+}
+function moveDbTT(e){
+  const x=e.clientX, y=e.clientY, w=dbTT.offsetWidth, h=dbTT.offsetHeight
+  dbTT.style.left = (x+16+w>window.innerWidth ? x-w-10 : x+16)+'px'
+  dbTT.style.top  = (y+16+h>window.innerHeight ? y-h-4 : y+16)+'px'
+}
+function hideDbTT(){ dbTT.style.display='none' }
+
+// ── Speed Profile Data (50m segment GPS averages) ─────────────────────────────
+const ALL_DATA = {
+  'K1 W 500m': [
+    {dist:'50m',  winner:17.7,  finalA:17.4,  finalB:16.5,  semiFinal:15.4},
+    {dist:'100m', winner:19.0,  finalA:18.3,  finalB:17.4,  semiFinal:15.7},
+    {dist:'150m', winner:18.4,  finalA:17.6,  finalB:16.8,  semiFinal:15.0},
+    {dist:'200m', winner:17.4,  finalA:17.1,  finalB:16.3,  semiFinal:14.4},
+    {dist:'250m', winner:17.3,  finalA:16.8,  finalB:16.0,  semiFinal:14.0},
+    {dist:'300m', winner:16.6,  finalA:16.3,  finalB:15.6,  semiFinal:13.7},
+    {dist:'350m', winner:16.5,  finalA:16.1,  finalB:15.5,  semiFinal:13.5},
+    {dist:'400m', winner:16.2,  finalA:15.9,  finalB:15.2,  semiFinal:13.5},
+    {dist:'450m', winner:15.6,  finalA:15.6,  finalB:14.9,  semiFinal:13.4},
+    {dist:'500m', winner:15.0,  finalA:15.1,  finalB:14.8,  semiFinal:13.2},
+  ],
+  'K1 M 1000m': [
+    {dist:'100m',  winner:19.9, finalA:19.4,  finalB:18.8,  semiFinal:16.7},
+    {dist:'200m',  winner:19.1, finalA:18.5,  finalB:17.8,  semiFinal:15.9},
+    {dist:'300m',  winner:17.8, finalA:17.5,  finalB:16.9,  semiFinal:15.3},
+    {dist:'400m',  winner:17.3, finalA:17.1,  finalB:16.4,  semiFinal:14.9},
+    {dist:'500m',  winner:16.9, finalA:16.7,  finalB:16.2,  semiFinal:14.7},
+    {dist:'600m',  winner:17.0, finalA:16.8,  finalB:16.2,  semiFinal:14.5},
+    {dist:'700m',  winner:17.1, finalA:16.9,  finalB:16.2,  semiFinal:14.4},
+    {dist:'800m',  winner:17.4, finalA:17.0,  finalB:16.4,  semiFinal:14.4},
+    {dist:'900m',  winner:17.3, finalA:17.6,  finalB:16.5,  semiFinal:14.7},
+    {dist:'1000m', winner:17.3, finalA:17.0,  finalB:15.8,  semiFinal:14.5},
+  ],
+  'K2 W 500m': [
+    {dist:'50m',  winner:18.7,  finalA:18.4,  finalB:17.8,  semiFinal:18.2},
+    {dist:'100m', winner:20.7,  finalA:20.0,  finalB:19.0,  semiFinal:19.5},
+    {dist:'150m', winner:19.9,  finalA:19.0,  finalB:18.0,  semiFinal:18.6},
+    {dist:'200m', winner:18.9,  finalA:18.3,  finalB:17.2,  semiFinal:18.0},
+    {dist:'250m', winner:18.2,  finalA:17.8,  finalB:16.9,  semiFinal:17.6},
+    {dist:'300m', winner:18.1,  finalA:17.7,  finalB:16.5,  semiFinal:17.3},
+    {dist:'350m', winner:17.8,  finalA:17.6,  finalB:16.1,  semiFinal:17.1},
+    {dist:'400m', winner:17.4,  finalA:17.1,  finalB:16.2,  semiFinal:16.9},
+    {dist:'450m', winner:16.9,  finalA:16.4,  finalB:15.9,  semiFinal:16.4},
+    {dist:'500m', winner:16.4,  finalA:16.0,  finalB:15.4,  semiFinal:16.0},
+  ],
+  'K2 M 500m': [
+    {dist:'50m',  winner:21.1,  finalA:21.1,  finalB:20.7,  semiFinal:20.6},
+    {dist:'100m', winner:23.4,  finalA:23.1,  finalB:22.6,  semiFinal:22.8},
+    {dist:'150m', winner:22.5,  finalA:21.8,  finalB:21.2,  semiFinal:21.6},
+    {dist:'200m', winner:21.9,  finalA:21.0,  finalB:20.4,  semiFinal:20.8},
+    {dist:'250m', winner:21.3,  finalA:20.4,  finalB:19.8,  semiFinal:20.1},
+    {dist:'300m', winner:20.7,  finalA:19.9,  finalB:19.1,  semiFinal:19.7},
+    {dist:'350m', winner:20.6,  finalA:19.5,  finalB:19.1,  semiFinal:19.3},
+    {dist:'400m', winner:20.1,  finalA:19.3,  finalB:18.6,  semiFinal:19.1},
+    {dist:'450m', winner:19.1,  finalA:18.8,  finalB:18.0,  semiFinal:18.4},
+    {dist:'500m', winner:18.1,  finalA:17.8,  finalB:17.4,  semiFinal:17.4},
+  ],
+  // K4 W 500m — GPS 50m averages (Aug28 race 169 FA, race 167 FB; Aug27 races 109+110 SF)
+  'K4 W 500m': [
+    {dist:'50m',  winner:18.98, finalA:18.57, finalB:17.66, semiFinal:17.66},
+    {dist:'100m', winner:21.29, finalA:20.74, finalB:20.08, semiFinal:19.23},
+    {dist:'150m', winner:20.50, finalA:19.53, finalB:19.12, semiFinal:18.25},
+    {dist:'200m', winner:19.58, finalA:18.60, finalB:18.32, semiFinal:17.59},
+    {dist:'250m', winner:18.49, finalA:17.72, finalB:17.57, semiFinal:17.24},
+    {dist:'300m', winner:17.70, finalA:17.63, finalB:17.51, semiFinal:17.12},
+    {dist:'350m', winner:17.66, finalA:17.65, finalB:17.44, semiFinal:16.96},
+    {dist:'400m', winner:17.77, finalA:17.71, finalB:17.12, semiFinal:16.66},
+    {dist:'450m', winner:17.38, finalA:17.14, finalB:16.75, semiFinal:16.54},
+    {dist:'500m', winner:17.04, finalA:16.75, finalB:16.39, semiFinal:16.23},
+  ],
+  // K4 M 500m — GPS 50m averages (Aug28 race 170 FA, race 166 FB; Aug27 races 111+112+113 SF)
+  'K4 M 500m': [
+    {dist:'50m',  winner:21.33, finalA:21.10, finalB:20.11, semiFinal:20.91},
+    {dist:'100m', winner:24.18, finalA:24.20, finalB:23.25, semiFinal:23.80},
+    {dist:'150m', winner:23.54, finalA:23.06, finalB:21.90, semiFinal:22.54},
+    {dist:'200m', winner:22.71, finalA:21.95, finalB:21.13, semiFinal:21.54},
+    {dist:'250m', winner:22.19, finalA:21.50, finalB:20.63, semiFinal:20.85},
+    {dist:'300m', winner:21.59, finalA:21.00, finalB:20.12, semiFinal:20.43},
+    {dist:'350m', winner:21.44, finalA:20.81, finalB:19.93, semiFinal:20.02},
+    {dist:'400m', winner:21.13, finalA:20.58, finalB:20.07, semiFinal:19.97},
+    {dist:'450m', winner:20.51, finalA:19.91, finalB:19.48, semiFinal:19.47},
+    {dist:'500m', winner:19.45, finalA:19.08, finalB:18.60, semiFinal:18.79},
+  ],
+}
+
+// ── Line chart tooltip config ─────────────────────────────────────────────────
+const lineTooltip = {
+  backgroundColor: tbg,
+  titleColor: ttt,
+  bodyColor:  ttb,
+  borderColor: tbc,
+  borderWidth: 1,
+  padding: 10,
+  mode: 'index',
+  intersect: false,
+  callbacks: {
+    title: items => items[0].label,
+    labelColor: ctx => ({
+      backgroundColor: ctx.dataset.borderColor,
+      borderColor:     ctx.dataset.borderColor,
+      borderRadius: 2,
+    }),
+    label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(2)} km/h`,
+  }
+}
+
+// ── Tab chart ─────────────────────────────────────────────────────────────────
+const EVENTS  = Object.keys(ALL_DATA)
+let selected  = EVENTS[0]
+let lineChart = null
+
+const tabsEl = document.getElementById('tabs')
+EVENTS.forEach(ev=>{
+  const btn = document.createElement('button')
+  btn.className = 'tab' + (ev===selected ? ' active' : '')
+  btn.textContent = ev
+  btn.onclick = ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'))
+    btn.classList.add('active')
+    selected = ev
+    drawLine()
+  }
+  tabsEl.appendChild(btn)
+})
+
+function drawLine(){
+  const data = ALL_DATA[selected]
+  document.getElementById('line-title').textContent   = selected + ' — Speed (km/h)'
+  document.getElementById('line-winner').textContent  = 'Winner: ' + WINNERS[selected]
+  if(lineChart) lineChart.destroy()
+  lineChart = new Chart(document.getElementById('line'), {
+    type: 'line',
+    data: {
+      labels: data.map(d=>d.dist),
+      datasets: [
+        { label:'Winner',     data:data.map(d=>d.winner),    borderColor:'#C62828', pointBackgroundColor:'#C62828', borderWidth:2.5, pointRadius:0, pointHoverRadius:5, tension:.3, backgroundColor:'transparent' },
+        { label:'Final A',    data:data.map(d=>d.finalA),    borderColor:'#1565C0', pointBackgroundColor:'#1565C0', borderWidth:2,   pointRadius:0, pointHoverRadius:4, tension:.3, backgroundColor:'transparent' },
+        { label:'Final B',    data:data.map(d=>d.finalB),    borderColor:'#2E7D32', pointBackgroundColor:'#2E7D32', borderWidth:2,   pointRadius:0, pointHoverRadius:4, tension:.3, backgroundColor:'transparent' },
+        { label:'Semi-Final', data:data.map(d=>d.semiFinal), borderColor:'#F9A825', pointBackgroundColor:'#F9A825', borderWidth:2,   pointRadius:0, pointHoverRadius:4, tension:.3, backgroundColor:'transparent' },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: lineTooltip,
+      },
+      scales: {
+        x: { grid:{ color:gc }, ticks:{ color:tc, font:{size:11} } },
+        y: { grid:{ color:gc }, ticks:{ color:tc, callback: v => v+' km/h' } },
+      }
+    }
+  })
+}
+drawLine()
+</script>
+</body>
+</html>
