@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Profiles</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#fff; --surface:#f9fafb; --border:#e5e7eb;
+    --text:#111827; --muted:#6b7280;
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Inter",sans-serif;padding:12px 16px 24px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px 12px;}
+  .card-title{font-size:.85rem;font-weight:700;margin-bottom:1px;}
+  .card-winner{font-size:.7rem;color:var(--muted);margin-bottom:12px;}
+  .chart-wrap{position:relative;height:180px;}
+  .leg-row{display:flex;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);margin-top:10px;}
+  .leg{display:flex;align-items:center;gap:5px;font-size:.68rem;color:var(--muted);}
+  @media(max-width:640px){
+    .grid{grid-template-columns:1fr;}
+    body{padding:8px 10px 20px;}
+  }
+</style>
+</head>
+<body>
+<div class="grid" id="root"></div>
+<script>
+const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches
+const gc  = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.055)'
+const tc  = isDark ? '#94a3b8' : '#9ca3af'
+const tbg = isDark ? '#1e2235' : '#fff'
+const ttt = isDark ? '#f1f5f9' : '#111827'
+const ttb = isDark ? '#94a3b8' : '#6b7280'
+const tbc = isDark ? '#2d3148' : '#e5e7eb'
+const C = { winner:'#C62828', finalA:'#1565C0', finalB:'#2E7D32', semiFinal:'#F9A825' }
+
+const EVENTS = {
+  'K1 W 500m': {
+    winner: 'Pauline JAGSCH (GER)',
+    labels:['50m','100m','150m','200m','250m','300m','350m','400m','450m','500m'],
+    winner_d:   [17.7,19.0,18.4,17.4,17.3,16.6,16.5,16.2,15.6,15.0],
+    finalA:     [17.4,18.3,17.6,17.1,16.8,16.3,16.1,15.9,15.6,15.1],
+    finalB:     [16.5,17.4,16.8,16.3,16.0,15.6,15.5,15.2,14.9,14.8],
+    semiFinal:  [15.4,15.7,15.0,14.4,14.0,13.7,13.5,13.5,13.4,13.2],
+  },
+  'K1 M 1000m': {
+    winner: 'Fernando PIMENTA (POR)',
+    labels:['100m','200m','300m','400m','500m','600m','700m','800m','900m','1000m'],
+    winner_d:   [19.9,19.1,17.8,17.3,16.9,17.0,17.1,17.4,17.3,17.3],
+    finalA:     [19.4,18.5,17.5,17.1,16.7,16.8,16.9,17.0,17.6,17.0],
+    finalB:     [18.8,17.8,16.9,16.4,16.2,16.2,16.2,16.4,16.5,15.8],
+    semiFinal:  [16.7,15.9,15.3,14.9,14.7,14.5,14.4,14.4,14.7,14.5],
+  },
+  'K2 W 500m': {
+    winner: 'HARLEN / DROBOT (AUS)',
+    labels:['50m','100m','150m','200m','250m','300m','350m','400m','450m','500m'],
+    winner_d:   [18.7,20.7,19.9,18.9,18.2,18.1,17.8,17.4,16.9,16.4],
+    finalA:     [18.4,20.0,19.0,18.3,17.8,17.7,17.6,17.1,16.4,16.0],
+    finalB:     [17.8,19.0,18.0,17.2,16.9,16.5,16.1,16.2,15.9,15.4],
+    semiFinal:  [18.2,19.5,18.6,18.0,17.6,17.3,17.1,16.9,16.4,16.0],
+  },
+  'K2 M 500m': {
+    winner: 'KURUCZ / FODOR (HUN)',
+    labels:['50m','100m','150m','200m','250m','300m','350m','400m','450m','500m'],
+    winner_d:   [21.1,23.4,22.5,21.9,21.3,20.7,20.6,20.1,19.1,18.1],
+    finalA:     [21.1,23.1,21.8,21.0,20.4,19.9,19.5,19.3,18.8,17.8],
+    finalB:     [20.7,22.6,21.2,20.4,19.8,19.1,19.1,18.6,18.0,17.4],
+    semiFinal:  [20.6,22.8,21.6,20.8,20.1,19.7,19.3,19.1,18.4,17.4],
+  },
+  'K4 W 500m': {
+    winner: 'PASZEK / HERMANUSSEN / JAGSCH / REINWARDT (GER)',
+    labels:['50m','100m','150m','200m','250m','300m','350m','400m','450m','500m'],
+    winner_d:   [18.98,21.29,20.50,19.58,18.49,17.70,17.66,17.77,17.38,17.04],
+    finalA:     [18.57,20.74,19.53,18.60,17.72,17.63,17.65,17.71,17.14,16.75],
+    finalB:     [17.66,20.08,19.12,18.32,17.57,17.51,17.44,17.12,16.75,16.39],
+    semiFinal:  [17.66,19.23,18.25,17.59,17.24,17.12,16.96,16.66,16.54,16.23],
+  },
+  'K4 M 500m': {
+    winner: 'RENDSCHMIDT / LEMKE / SCHOPF / LIEBSCHER-LUCZ (GER)',
+    labels:['50m','100m','150m','200m','250m','300m','350m','400m','450m','500m'],
+    winner_d:   [21.33,24.18,23.54,22.71,22.19,21.59,21.44,21.13,20.51,19.45],
+    finalA:     [21.10,24.20,23.06,21.95,21.50,21.00,20.81,20.58,19.91,19.08],
+    finalB:     [20.11,23.25,21.90,21.13,20.63,20.12,19.93,20.07,19.48,18.60],
+    semiFinal:  [20.91,23.80,22.54,21.54,20.85,20.43,20.02,19.97,19.47,18.79],
+  },
+}
+
+const root = document.getElementById('root')
+Object.entries(EVENTS).forEach(([name, ev])=>{
+  const card = document.createElement('div')
+  card.className = 'card'
+  const cid = 'c-'+name.replace(/\s/g,'_')
+  card.innerHTML = `
+    <div class="card-title">${name}</div>
+    <div class="card-winner">${ev.winner}</div>
+    <div class="chart-wrap"><canvas id="${cid}"></canvas></div>
+    <div class="leg-row">
+      <div class="leg"><div style="background:${C.winner};height:2.5px;width:18px;border-radius:2px"></div>Winner</div>
+      <div class="leg"><div style="background:${C.finalA};height:2px;width:18px;border-radius:2px"></div>Final A</div>
+      <div class="leg"><div style="background:${C.finalB};height:2px;width:18px;border-radius:2px"></div>Final B</div>
+      <div class="leg"><div style="background:${C.semiFinal};height:2px;width:18px;border-radius:2px"></div>Semi-Final</div>
+    </div>`
+  root.appendChild(card)
+
+  new Chart(document.getElementById(cid), {
+    type:'line',
+    data:{
+      labels: ev.labels,
+      datasets:[
+        {label:'Winner',    data:ev.winner_d,  borderColor:C.winner,    pointBackgroundColor:C.winner,    borderWidth:2.5,pointRadius:0,pointHoverRadius:5,tension:.3,backgroundColor:'transparent'},
+        {label:'Final A',   data:ev.finalA,    borderColor:C.finalA,    pointBackgroundColor:C.finalA,    borderWidth:2,  pointRadius:0,pointHoverRadius:4,tension:.3,backgroundColor:'transparent'},
+        {label:'Final B',   data:ev.finalB,    borderColor:C.finalB,    pointBackgroundColor:C.finalB,    borderWidth:2,  pointRadius:0,pointHoverRadius:4,tension:.3,backgroundColor:'transparent'},
+        {label:'Semi-Final',data:ev.semiFinal, borderColor:C.semiFinal, pointBackgroundColor:C.semiFinal, borderWidth:2,  pointRadius:0,pointHoverRadius:4,tension:.3,backgroundColor:'transparent'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:tbg,titleColor:ttt,bodyColor:ttb,borderColor:tbc,borderWidth:1,padding:9,
+          mode:'index',intersect:false,
+          callbacks:{
+            title:items=>items[0].label,
+            labelColor:ctx=>({backgroundColor:ctx.dataset.borderColor,borderColor:ctx.dataset.borderColor,borderRadius:2}),
+            label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(2)} km/h`
+          }
+        }
+      },
+      scales:{
+        x:{grid:{color:gc},ticks:{color:tc,font:{size:9.5},maxRotation:0}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{size:9.5},callback:v=>v.toFixed(1)}},
+      }
+    }
+  })
+})
+</script>
+</body>
+</html>
