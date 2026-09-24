@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SR Overview</title>
+<style>
+  :root {
+    --bg:#fff; --surface:#f9fafb; --border:#e5e7eb;
+    --text:#111827; --muted:#6b7280;
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Inter",sans-serif;padding:8px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 20px 14px;margin-bottom:20px;}
+  .db-legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;
+             padding-top:12px;border-top:1px solid var(--border);align-items:center;}
+  .db-leg{display:flex;align-items:center;gap:7px;font-size:0.75rem;color:var(--muted);}
+  #tt{position:fixed;display:none;background:var(--surface);
+      border:1px solid var(--border);border-radius:10px;
+      padding:12px 14px;font-size:0.78rem;color:var(--text);
+      box-shadow:0 4px 16px rgba(0,0,0,.12);pointer-events:none;
+      min-width:190px;z-index:100;}
+  #tt .tt-event{font-weight:700;margin-bottom:8px;font-size:0.8rem;}
+  #tt .tt-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:3px;}
+  #tt .tt-vals{display:flex;gap:10px;}
+  #tt .tt-val{font-variant-numeric:tabular-nums;min-width:28px;text-align:right;}
+  #tt .tt-head{display:flex;justify-content:flex-end;gap:10px;
+               color:var(--muted);font-size:0.7rem;margin-bottom:4px;padding-bottom:4px;
+               border-bottom:1px solid var(--border);}
+  #tt .tt-head span{min-width:28px;text-align:right;}
+</style>
+</head>
+<body>
+
+<div class="card" style="overflow:visible;padding-bottom:16px">
+  <svg id="dumbbell" viewBox="0 0 820 360" width="100%" style="overflow:visible"></svg>
+  <div class="db-legend">
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#C62828" stroke-width="2.5"/><circle cx="14" cy="5" r="3.5" fill="#C62828"/></svg>
+      <span>Winner</span>
+    </div>
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#1565C0" stroke-width="2"/><circle cx="14" cy="5" r="3" fill="#1565C0"/></svg>
+      <span>Final A</span>
+    </div>
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#2E7D32" stroke-width="2"/><circle cx="14" cy="5" r="3" fill="#2E7D32"/></svg>
+      <span>Final B</span>
+    </div>
+    <div class="db-leg">
+      <svg width="28" height="10"><line x1="0" y1="5" x2="28" y2="5" stroke="#F9A825" stroke-width="2"/><circle cx="14" cy="5" r="3" fill="#F9A825"/></svg>
+      <span>Semi-Final</span>
+    </div>
+    <div class="db-leg" style="margin-left:10px;padding-left:10px;border-left:1px solid var(--border)">
+      <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="white" stroke="#888" stroke-width="1.5"/></svg>
+      <span>First Seg.</span>
+    </div>
+    <div class="db-leg">
+      <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="#888"/></svg>
+      <span>Last Seg.</span>
+    </div>
+  </div>
+</div>
+
+<div id="tt">
+  <div class="tt-event" id="tt-event"></div>
+  <div class="tt-head"><span>First</span><span>Last</span></div>
+  <div class="tt-row" id="tt-w"></div>
+  <div class="tt-row" id="tt-fa"></div>
+  <div class="tt-row" id="tt-fb"></div>
+  <div class="tt-row" id="tt-sf"></div>
+</div>
+
+<script>
+const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches
+const gc  = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)'
+const tc  = isDark ? '#94a3b8' : '#9ca3af'
+
+const DB_DATA = {
+  'K1 W 500m': {
+    winner:    { start:157, finish:114 },
+    finalA:    { start:142, finish:113 },
+    finalB:    { start:127, finish:106 },
+    semiFinal: { start:110, finish: 87 },
+  },
+  'K1 M 1000m': {
+    winner:    { start:134, finish:114 },
+    finalA:    { start:136, finish:116 },
+    finalB:    { start:138, finish:112 },
+    semiFinal: { start:129, finish:106 },
+  },
+  'K2 W 500m': {
+    winner:    { start:148, finish:118 },
+    finalA:    { start:140, finish:112 },
+    finalB:    { start:143, finish:108 },
+    semiFinal: { start:144, finish:117 },
+  },
+  'K2 M 500m': {
+    winner:    { start:159, finish:124 },
+    finalA:    { start:156, finish:126 },
+    finalB:    { start:151, finish:115 },
+    semiFinal: { start:143, finish:111 },
+  },
+  'K4 W 500m': {
+    winner:    { start:152, finish:117 },
+    finalA:    { start:149, finish:116 },
+    finalB:    { start:141, finish:122 },
+    semiFinal: { start:143, finish:112 },
+  },
+  'K4 M 500m': {
+    winner:    { start:154, finish:130 },
+    finalA:    { start:155, finish:130 },
+    finalB:    { start:144, finish:125 },
+    semiFinal: { start:155, finish:126 },
+  },
+}
+const DB_COLORS = { winner:'#C62828', finalA:'#1565C0', finalB:'#2E7D32', semiFinal:'#F9A825' }
+const DB_LABELS = { winner:'Winner', finalA:'Final A', finalB:'Final B', semiFinal:'Semi-Final' }
+const DB_GROUPS = ['winner','finalA','finalB','semiFinal']
+
+const SVG_W=820, SVG_H=360, ML=52, MR=20, MT=24, MB=52
+const CW=SVG_W-ML-MR, CH=SVG_H-MT-MB
+const DB_EVENTS = Object.keys(DB_DATA)
+const EW = CW / DB_EVENTS.length
+const G_OFF = [-24,-8,8,24]
+const Y_MIN=82, Y_MAX=166
+const yc = v => MT + CH*(1-(v-Y_MIN)/(Y_MAX-Y_MIN))
+const ec = i => ML + EW*i + EW/2
+const svgNS = 'http://www.w3.org/2000/svg'
+const dbSvg = document.getElementById('dumbbell')
+const bgFill   = isDark ? '#0f1117' : '#ffffff'
+const bandFill = isDark ? 'rgba(255,255,255,.02)' : 'rgba(0,0,0,.015)'
+
+for(let v=90; v<=160; v+=10){
+  const y = yc(v)
+  const g = document.createElementNS(svgNS,'line')
+  g.setAttribute('x1',ML); g.setAttribute('x2',SVG_W-MR)
+  g.setAttribute('y1',y);  g.setAttribute('y2',y)
+  g.setAttribute('stroke',gc); g.setAttribute('stroke-width','1')
+  dbSvg.appendChild(g)
+  const t = document.createElementNS(svgNS,'text')
+  t.setAttribute('x',ML-8); t.setAttribute('y',y+4)
+  t.setAttribute('text-anchor','end'); t.setAttribute('font-size','11')
+  t.setAttribute('fill',tc); t.textContent = v
+  dbSvg.appendChild(t)
+}
+const yl = document.createElementNS(svgNS,'text')
+yl.setAttribute('transform','rotate(-90)')
+yl.setAttribute('x',-(MT+CH/2)); yl.setAttribute('y',14)
+yl.setAttribute('text-anchor','middle'); yl.setAttribute('font-size','10')
+yl.setAttribute('fill',tc); yl.textContent = 'SR (spm)'
+dbSvg.appendChild(yl)
+
+DB_EVENTS.forEach((ev,ei)=>{
+  const cx = ec(ei)
+  if(ei%2===0){
+    const band = document.createElementNS(svgNS,'rect')
+    band.setAttribute('x',cx-EW/2); band.setAttribute('y',MT)
+    band.setAttribute('width',EW);  band.setAttribute('height',CH)
+    band.setAttribute('fill',bandFill)
+    dbSvg.appendChild(band)
+  }
+  DB_GROUPS.forEach((g,gi)=>{
+    const d = DB_DATA[ev][g]
+    if(!d) return
+    const x=cx+G_OFF[gi], c=DB_COLORS[g], isW=g==='winner'
+    const sw=isW?2.5:1.5, pr=isW?5:4
+    const yS=yc(d.start), yF=yc(d.finish)
+    const yTop=Math.min(yS,yF), yBot=Math.max(yS,yF)
+    const ln = document.createElementNS(svgNS,'line')
+    ln.setAttribute('x1',x); ln.setAttribute('x2',x)
+    ln.setAttribute('y1',yTop); ln.setAttribute('y2',yBot)
+    ln.setAttribute('stroke',c); ln.setAttribute('stroke-width',sw)
+    dbSvg.appendChild(ln)
+    const fc = document.createElementNS(svgNS,'circle')
+    fc.setAttribute('cx',x); fc.setAttribute('cy',yF)
+    fc.setAttribute('r',pr); fc.setAttribute('fill',c)
+    dbSvg.appendChild(fc)
+    const sc = document.createElementNS(svgNS,'circle')
+    sc.setAttribute('cx',x); sc.setAttribute('cy',yS)
+    sc.setAttribute('r',pr); sc.setAttribute('fill',bgFill)
+    sc.setAttribute('stroke',c); sc.setAttribute('stroke-width',sw)
+    dbSvg.appendChild(sc)
+  })
+  const parts = ev.split(' ')
+  const t1 = document.createElementNS(svgNS,'text')
+  t1.setAttribute('x',cx); t1.setAttribute('y',SVG_H-MB+18)
+  t1.setAttribute('text-anchor','middle'); t1.setAttribute('font-size','11')
+  t1.setAttribute('fill',tc); t1.textContent = parts.slice(0,2).join(' ')
+  dbSvg.appendChild(t1)
+  const t2 = document.createElementNS(svgNS,'text')
+  t2.setAttribute('x',cx); t2.setAttribute('y',SVG_H-MB+31)
+  t2.setAttribute('text-anchor','middle'); t2.setAttribute('font-size','11')
+  t2.setAttribute('fill',tc); t2.textContent = parts[2]||''
+  dbSvg.appendChild(t2)
+  const hr = document.createElementNS(svgNS,'rect')
+  hr.setAttribute('x',cx-EW/2); hr.setAttribute('y',MT)
+  hr.setAttribute('width',EW);  hr.setAttribute('height',CH)
+  hr.setAttribute('fill','transparent')
+  hr.addEventListener('mouseenter', e => showDbTT(e,ev))
+  hr.addEventListener('mousemove',  moveDbTT)
+  hr.addEventListener('mouseleave', hideDbTT)
+  dbSvg.appendChild(hr)
+})
+
+const dbTT    = document.getElementById('tt')
+const dbTTEv  = document.getElementById('tt-event')
+const dbTTRows = {
+  winner:    document.getElementById('tt-w'),
+  finalA:    document.getElementById('tt-fa'),
+  finalB:    document.getElementById('tt-fb'),
+  semiFinal: document.getElementById('tt-sf'),
+}
+function showDbTT(e, ev){
+  dbTTEv.textContent = ev
+  DB_GROUPS.forEach(g=>{
+    const row = dbTTRows[g]
+    if(!DB_DATA[ev][g]){ row.style.display='none'; return }
+    const d = DB_DATA[ev][g]
+    row.style.display = 'flex'
+    row.innerHTML = `
+      <span style="color:${DB_COLORS[g]};font-weight:${g==='winner'?700:400}">${DB_LABELS[g]}</span>
+      <span class="tt-vals">
+        <span class="tt-val">${d.start}</span>
+        <span class="tt-val">${d.finish}</span>
+      </span>`
+  })
+  dbTT.style.display = 'block'
+  moveDbTT(e)
+}
+function moveDbTT(e){
+  const x=e.clientX, y=e.clientY, w=dbTT.offsetWidth, h=dbTT.offsetHeight
+  dbTT.style.left = (x+16+w>window.innerWidth ? x-w-10 : x+16)+'px'
+  dbTT.style.top  = (y+16+h>window.innerHeight ? y-h-4 : y+16)+'px'
+}
+function hideDbTT(){ dbTT.style.display='none' }
+</script>
+</body>
+</html>
