@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SR Profiles</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#fff; --surface:#f9fafb; --border:#e5e7eb;
+    --text:#111827; --muted:#6b7280;
+  }
+  @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1117; --surface:#1a1d27; --border:#2d3148;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,"Inter",sans-serif;padding:12px 16px 24px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px 12px;}
+  .card-title{font-size:.85rem;font-weight:700;margin-bottom:1px;}
+  .card-winner{font-size:.7rem;color:var(--muted);margin-bottom:12px;}
+  .chart-wrap{position:relative;height:170px;}
+  .leg-row{display:flex;gap:10px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--border);margin-top:10px;}
+  .leg{display:flex;align-items:center;gap:5px;font-size:.68rem;color:var(--muted);}
+  /* Summary table */
+  .tbl-title{font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+             color:var(--muted);margin-top:14px;margin-bottom:5px;
+             padding-top:12px;border-top:1px solid var(--border);}
+  .tbl-wrap{overflow-x:auto;}
+  .sr-tbl{width:100%;border-collapse:collapse;font-size:11px;min-width:240px;}
+  .sr-tbl th{font-size:8.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+             color:var(--muted);padding:3px 8px 5px;text-align:left;
+             border-bottom:1px solid var(--border);}
+  .sr-tbl th.r{text-align:right;}
+  .sr-tbl td{padding:5px 8px;border-bottom:1px solid var(--border);
+             font-variant-numeric:tabular-nums;line-height:1.3;}
+  .sr-tbl td.r{text-align:right;font-weight:600;}
+  .sr-tbl tr:last-child td{border-bottom:none;}
+  .row-winner td{color:#C62828;font-weight:700;}
+  .row-fa td:first-child{color:#1565C0;}
+  .row-fb td:first-child{color:#2E7D32;}
+  .row-sf td:first-child{color:#F9A825;}
+  .note{font-size:.62rem;color:var(--muted);font-style:italic;margin-top:6px;}
+  @media(max-width:640px){
+    .grid{grid-template-columns:1fr;}
+    body{padding:8px 10px 20px;}
+  }
+</style>
+</head>
+<body>
+<div class="grid" id="root"></div>
+<script>
+const isDark = window.matchMedia('(prefers-color-scheme:dark)').matches
+const gc  = isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.055)'
+const tc  = isDark ? '#94a3b8' : '#9ca3af'
+const tbg = isDark ? '#1e2235' : '#fff'
+const ttt = isDark ? '#f1f5f9' : '#111827'
+const ttb = isDark ? '#94a3b8' : '#6b7280'
+const tbc = isDark ? '#2d3148' : '#e5e7eb'
+const C = { winner:'#C62828', finalA:'#1565C0', finalB:'#2E7D32', semiFinal:'#F9A825' }
+
+const EVENTS = {
+  'K1 W 500m': {
+    winner: 'Pauline JAGSCH (GER)',
+    labels:['0–50','50–100','100–150','150–200','200–250','250–300','300–350','350–400','400–450','450–500'],
+    winner_d:   [157,138,130,124,118,116,115,115,115,114],
+    finalA:     [142,130,124,120,114,113,113,114,114,113],
+    finalB:     [127,116,112,109,106,106,106,106,106,106],
+    semiFinal:  [110,100,95,91,88,88,88,87,88,87],
+    tableHeaders:['0–250 m','250–500 m'],
+    td:{ winner:[133.6,115.0], finalA:[125.9,113.8], finalB:[113.9,106.1], semiFinal:[97.2,87.8] },
+    groupLabels:{ winner:'Winner', finalA:'Final A (n=9)', finalB:'Final B (n=9)', semiFinal:'Semi-final (n=26)' },
+  },
+  'K1 M 1000m': {
+    winner: 'Fernando PIMENTA (POR)',
+    labels:['0–100','100–200','200–300','300–400','400–500','500–600','600–700','700–800','800–900','900–1000'],
+    winner_d:   [134,113,111,103,104,103,104,105,110,114],
+    finalA:     [136,114,113,107,108,107,107,108,111,116],
+    finalB:     [138,110,111,106,106,105,104,104,107,112],
+    semiFinal:  [129,105,106,102,102,101,101,101,103,106],
+    tableHeaders:['0–250 m','250–500 m','500–750 m','750–1000 m'],
+    td:{ winner:[119.3,103.4,104.7,111.9], finalA:[121.1,107.4,107.4,112.9], finalB:[119.6,105.9,104.2,109.3], semiFinal:[113.2,102.0,101.2,104.2] },
+    groupLabels:{ winner:'Winner', finalA:'Final A (n=9)', finalB:'Final B (n=8)', semiFinal:'Semi-final (n=26)' },
+  },
+  'K2 W 500m': {
+    winner: 'HARLEN / DROBOT (AUS)',
+    labels:['0–50','50–100','100–150','150–200','200–250','250–300','300–350','350–400','400–450','450–500'],
+    winner_d:   [148,129,128,127,125,125,123,122,121,118],
+    finalA:     [140,126,122,120,118,117,115,115,114,112],
+    finalB:     [143,130,128,125,120,114,110,109,108,108],
+    semiFinal:  [144,127,124,121,118,118,118,117,117,117],
+    tableHeaders:['0–250 m','250–500 m'],
+    td:{ winner:[131.4,122.0], finalA:[125.2,115.1], finalB:[129.2,109.9], semiFinal:[126.6,117.2] },
+    groupLabels:{ winner:'Winner', finalA:'Final A (n=9)', finalB:'Final B (n=9)', semiFinal:'Semi-final (n=17)' },
+  },
+  'K2 M 500m': {
+    winner: 'KURUCZ / FODOR (HUN)',
+    note:'* Norway excluded from SR averages due to incomplete chip data (60% valid readings).',
+    labels:['0–50','50–100','100–150','150–200','200–250','250–300','300–350','350–400','400–450','450–500'],
+    winner_d:   [159,132,129,126,122,126,125,124,124,124],
+    finalA:     [156,132,132,132,132,130,129,128,127,126],
+    finalB:     [151,132,132,132,131,121,118,117,116,115],
+    semiFinal:  [143,117,116,116,116,113,112,111,111,111],
+    tableHeaders:['0–250 m','250–500 m'],
+    td:{ winner:[133.6,124.1], finalA:[136.5,128.1], finalB:[135.4,117.3], semiFinal:[121.7,111.8] },
+    groupLabels:{ winner:'Winner', finalA:'Final A (n=8)', finalB:'Final B (n=9)', semiFinal:'Semi-final (n=27)' },
+  },
+  'K4 W 500m': {
+    winner: 'PASZEK / HERMANUSSEN / JAGSCH / REINWARDT (GER)',
+    labels:['0–50','50–100','100–150','150–200','200–250','250–300','300–350','350–400','400–450','450–500'],
+    winner_d:   [152,130,129,126,120,120,119,118,117,117],
+    finalA:     [149,128,128,127,127,118,117,117,117,116],
+    finalB:     [141,131,131,131,130,124,123,122,122,122],
+    semiFinal:  [143,123,122,122,123,113,112,111,111,112],
+    tableHeaders:['0–250 m','250–500 m'],
+    td:{ winner:[131.3,118.4], finalA:[131.7,117.1], finalB:[132.9,122.8], semiFinal:[126.7,111.6] },
+    groupLabels:{ winner:'Winner', finalA:'Final A (n=9)', finalB:'Final B (n=9)', semiFinal:'Semi-final (n=18)' },
+  },
+  'K4 M 500m': {
+    winner: 'RENDSCHMIDT / LEMKE / SCHOPF / LIEBSCHER-LUCZ (GER)',
+    labels:['0–50','50–100','100–150','150–200','200–250','250–300','300–350','350–400','400–450','450–500'],
+    winner_d:   [154,138,137,136,136,131,130,130,129,130],
+    finalA:     [155,136,135,135,135,131,130,130,130,130],
+    finalB:     [144,132,132,132,131,125,125,124,124,125],
+    semiFinal:  [155,134,133,133,133,127,126,126,125,126],
+    tableHeaders:['0–250 m','250–500 m'],
+    td:{ winner:[140.3,129.8], finalA:[139.3,130.0], finalB:[134.1,124.8], semiFinal:[137.8,126.0] },
+    groupLabels:{ winner:'Winner', finalA:'Final A (n=9)', finalB:'Final B (n=9)', semiFinal:'Semi-final (n=26)' },
+  },
+}
+
+function buildTable(ev){
+  const keys = ['winner','finalA','finalB','semiFinal']
+  const rowCls = { winner:'row-winner', finalA:'row-fa', finalB:'row-fb', semiFinal:'row-sf' }
+  let h = `<table class="sr-tbl"><thead><tr><th>Group</th>`
+  ev.tableHeaders.forEach(hdr=>{ h+=`<th class="r">${hdr}</th>` })
+  h+=`</tr></thead><tbody>`
+  keys.forEach(key=>{
+    h+=`<tr class="${rowCls[key]}"><td>${ev.groupLabels[key]}</td>`
+    ev.td[key].forEach(v=>{ h+=`<td class="r">${v.toFixed(1)}</td>` })
+    h+=`</tr>`
+  })
+  return h+'</tbody></table>'
+}
+
+const root = document.getElementById('root')
+Object.entries(EVENTS).forEach(([name, ev])=>{
+  const card = document.createElement('div')
+  card.className = 'card'
+  const cid = 'c-'+name.replace(/\s/g,'_')
+  card.innerHTML = `
+    <div class="card-title">${name}</div>
+    <div class="card-winner">${ev.winner}</div>
+    <div class="chart-wrap"><canvas id="${cid}"></canvas></div>
+    <div class="leg-row">
+      <div class="leg"><div style="background:${C.winner};height:2.5px;width:18px;border-radius:2px"></div>Winner</div>
+      <div class="leg"><div style="background:${C.finalA};height:2px;width:18px;border-radius:2px"></div>Final A</div>
+      <div class="leg"><div style="background:${C.finalB};height:2px;width:18px;border-radius:2px"></div>Final B</div>
+      <div class="leg"><div style="background:${C.semiFinal};height:2px;width:18px;border-radius:2px"></div>Semi-Final</div>
+    </div>
+    <div class="tbl-title">Average SR by Race Split (spm)</div>
+    <div class="tbl-wrap">${buildTable(ev)}</div>
+    ${ev.note ? `<div class="note">${ev.note}</div>` : ''}
+  `
+  root.appendChild(card)
+
+  new Chart(document.getElementById(cid), {
+    type:'line',
+    data:{
+      labels: ev.labels,
+      datasets:[
+        {label:'Winner',    data:ev.winner_d,  borderColor:C.winner,    pointBackgroundColor:C.winner,    borderWidth:2.5,pointRadius:0,pointHoverRadius:5,tension:.3,backgroundColor:'transparent'},
+        {label:'Final A',   data:ev.finalA,    borderColor:C.finalA,    pointBackgroundColor:C.finalA,    borderWidth:2,  pointRadius:0,pointHoverRadius:4,tension:.3,backgroundColor:'transparent'},
+        {label:'Final B',   data:ev.finalB,    borderColor:C.finalB,    pointBackgroundColor:C.finalB,    borderWidth:2,  pointRadius:0,pointHoverRadius:4,tension:.3,backgroundColor:'transparent'},
+        {label:'Semi-Final',data:ev.semiFinal, borderColor:C.semiFinal, pointBackgroundColor:C.semiFinal, borderWidth:2,  pointRadius:0,pointHoverRadius:4,tension:.3,backgroundColor:'transparent'},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:tbg,titleColor:ttt,bodyColor:ttb,borderColor:tbc,borderWidth:1,padding:9,
+          mode:'index',intersect:false,
+          callbacks:{
+            title:items=>items[0].label,
+            labelColor:ctx=>({backgroundColor:ctx.dataset.borderColor,borderColor:ctx.dataset.borderColor,borderRadius:2}),
+            label:c=>` ${c.dataset.label}: ${c.parsed.y} spm`
+          }
+        }
+      },
+      scales:{
+        x:{grid:{color:gc},ticks:{color:tc,font:{size:9.5},maxRotation:0}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{size:9.5}}},
+      }
+    }
+  })
+})
+</script>
+</body>
+</html>
